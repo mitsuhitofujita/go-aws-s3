@@ -4,7 +4,6 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -120,7 +119,6 @@ func (s3 *S3) Upload(filePath, s3Path string) (err error) {
 
 		_, err = s3.uploader.upload(s3, filePath, s3Path)
 		if err != nil {
-			fmt.Printf("Upload upload: %v\n", err)
 			s3.wait()
 			continue
 		}
@@ -128,20 +126,17 @@ func (s3 *S3) Upload(filePath, s3Path string) (err error) {
 		var isETag bool
 		isETag, err = s3.IsETag(filePath, s3Path)
 		if err != nil {
-			fmt.Printf("Upload IsETag: %v\n", err)
 			s3.wait()
 			continue
 		}
 
 		if isETag == false {
-			fmt.Printf("Upload: isETag: \n")
 			err = errors.New("unmatch etag")
 			s3.wait()
 			continue
 		}
 		break
 	}
-	fmt.Printf("Upload: err: %v\n", err)
 	return
 }
 
@@ -169,9 +164,6 @@ func (_ *Uploader) upload(s3 *S3, filePath, s3Path string) (out *manager.UploadO
 			Key:    s3PathStr,
 			Body:   file,
 		},
-		func(uploader *manager.Uploader) {
-			fmt.Printf("uploader: %v\n", uploader)
-		},
 	)
 	if err != nil {
 		return
@@ -192,7 +184,6 @@ func (s3 *S3) Download(filePath, s3Path string) (n int64, err error) {
 
 		n, err = s3.downloader.download(s3, filePath, s3Path)
 		if err != nil {
-			fmt.Printf("Download download: %v\n", err)
 			s3.wait()
 			continue
 		}
@@ -200,13 +191,11 @@ func (s3 *S3) Download(filePath, s3Path string) (n int64, err error) {
 		var isETag bool
 		isETag, err = s3.IsETag(filePath, s3Path)
 		if err != nil {
-			fmt.Printf("Download IsETag: %v\n", err)
 			s3.wait()
 			continue
 		}
 
 		if isETag == false {
-			fmt.Printf("Download: isETag: %v\n", err)
 			err = errors.New("unmatch etag")
 			s3.wait()
 			continue
@@ -242,12 +231,6 @@ func (_ Downloader) download(s3 *S3, filePath, s3Path string) (n int64, err erro
 			Bucket: s3.bucket,
 			Key:    aws.String(s3Path),
 		},
-		func(downloader *manager.Downloader) {
-			fmt.Printf("downloader: %v\n", downloader)
-			fmt.Println("PartSize:       ", downloader.PartSize)
-			fmt.Println("Concurrency:    ", downloader.Concurrency)
-			fmt.Println("BufferProvider: ", downloader.BufferProvider)
-		},
 	)
 	return
 }
@@ -268,7 +251,6 @@ func (s3 *S3) IsETag(filePath, s3Path string) (isETag bool, err error) {
 	if err != nil {
 		return
 	}
-	fmt.Printf("IsETag: %v\n", out)
 
 	eTag := strings.Trim(*out.ETag, "\" ")
 	fileSize := int(*out.ContentLength)
@@ -286,7 +268,6 @@ func (s3 *S3) isETag(filePath, eTag string, fileSize int) (isETag bool, err erro
 	if err != nil {
 		return
 	}
-	fmt.Printf("hash: %v, partCnt: %v\n", hash, partCnt)
 
 	var fileHash string
 	if partCnt > 1 {
@@ -295,19 +276,15 @@ func (s3 *S3) isETag(filePath, eTag string, fileSize int) (isETag bool, err erro
 		if err != nil {
 			return
 		}
-		fmt.Printf("partSize: %v\n", partSize)
 
 		fileHash, err = s3.hashMaker.makeMultiPartFromFile(filePath, partSize)
-		fmt.Printf("fileHash: %v\n", fileHash)
 	} else {
 		fileHash, err = s3.hashMaker.makeSinglePartFromFile(filePath)
-		fmt.Printf("fileHash: %v\n", fileHash)
 	}
 	if err != nil {
 		return
 	}
-
-	fmt.Printf("S3.isETag: %v\n", err)
+	
 	isETag = fileHash == hash
 	return
 }
