@@ -2,9 +2,10 @@ package s3
 
 import (
 	"errors"
+	"testing"
+
 	client "github.com/aws/aws-sdk-go/service/s3"
 	manager "github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"testing"
 )
 
 type HeadGetterTest struct {
@@ -50,7 +51,6 @@ func (hmt *HashMakerTest) makeSinglePartFromFile(filePath string) (hash string, 
 	return
 }
 
-
 type UploaderTest struct {
 	Values           []UploaderTestValue
 	CurrentPosition  int
@@ -69,9 +69,9 @@ func (ut *UploaderTest) upload(s3 *S3, filePath, s3Path string) (out *manager.Up
 	return
 }
 
+//nolint:funlen
 func TestUpload(t *testing.T) {
-
-	eTag := "  \"1234567890\"  "
+	eTag := "  \"1234567890\"  " //nolint:goconst
 	contentLength := int64(123)
 
 	cases := []struct {
@@ -219,7 +219,7 @@ func TestUpload(t *testing.T) {
 	}
 	for _, c := range cases {
 		s3, err := New(&Config{
-			Id:         "ID",
+			ID:         "ID",
 			Uploader:   &c.uploader,
 			HeadGetter: &c.headGetter,
 			HashMaker:  &c.hashMaker,
@@ -259,7 +259,6 @@ func TestUpload(t *testing.T) {
 	}
 }
 
-
 type DownloaderTest struct {
 	Values           []DownloaderTestValue
 	CurrentPosition  int
@@ -278,9 +277,9 @@ func (dt *DownloaderTest) download(s3 *S3, filePath, s3Path string) (out int64, 
 	return
 }
 
+//nolint:funlen
 func TestDownload(t *testing.T) {
-
-	eTag := "  \"1234567890\"  "
+	eTag := "  \"1234567890\"  " //nolint:goconst
 	contentLength := int64(123)
 
 	cases := []struct {
@@ -428,8 +427,8 @@ func TestDownload(t *testing.T) {
 	}
 	for _, c := range cases {
 		s3, err := New(&Config{
-			Id:         "ID",
-			Downloader:   &c.downloader,
+			ID:         "ID",
+			Downloader: &c.downloader,
 			HeadGetter: &c.headGetter,
 			HashMaker:  &c.hashMaker,
 		})
@@ -467,7 +466,6 @@ func TestDownload(t *testing.T) {
 		}
 	}
 }
-
 
 func TestGetMultiPartSize(t *testing.T) {
 	cases := []struct {

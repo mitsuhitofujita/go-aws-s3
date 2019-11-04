@@ -1,19 +1,20 @@
 package s3
 
 import (
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec
 	"encoding/hex"
 	"errors"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	client "github.com/aws/aws-sdk-go/service/s3"
-	manager "github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	client "github.com/aws/aws-sdk-go/service/s3"
+	manager "github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
 const megabyte = 1024 * 1024
@@ -36,37 +37,37 @@ type HashMakerInterface interface {
 }
 
 type S3 struct {
-	credentials *credentials.Credentials
-	session     *session.Session
-	region      *string
-	bucket      *string
-	s3          *client.S3
-	retryCnt    int
-	waitSec     time.Duration
-	uploader    UploaderInterface
-	downloader  DownloaderInterface
-	headGetter  HeadGetterInterface
-	hashMaker   HashMakerInterface
+	credentials  *credentials.Credentials
+	session      *session.Session
+	region       *string
+	bucket       *string
+	s3           *client.S3
+	retryCnt     int
+	waitDuration time.Duration
+	uploader     UploaderInterface
+	downloader   DownloaderInterface
+	headGetter   HeadGetterInterface
+	hashMaker    HashMakerInterface
 }
 
 type Config struct {
-	Id         string
-	Secret     string
-	Token      string
-	Region     string
-	Bucket     string
-	RetryCnt   int
-	WaitSec    time.Duration
-	Uploader   UploaderInterface
-	Downloader DownloaderInterface
-	HeadGetter HeadGetterInterface
-	HashMaker  HashMakerInterface
+	ID           string
+	Secret       string
+	Token        string
+	Region       string
+	Bucket       string
+	RetryCnt     int
+	WaitDuration time.Duration
+	Uploader     UploaderInterface
+	Downloader   DownloaderInterface
+	HeadGetter   HeadGetterInterface
+	HashMaker    HashMakerInterface
 }
 
 func New(config *Config) (s3 *S3, err error) {
 	config.setDefault()
 
-	creds := credentials.NewStaticCredentials(config.Id, config.Secret, config.Token)
+	creds := credentials.NewStaticCredentials(config.ID, config.Secret, config.Token)
 	region := aws.String(config.Region)
 	bucket := aws.String(config.Bucket)
 	sess, err := session.NewSession(&aws.Config{
@@ -77,17 +78,17 @@ func New(config *Config) (s3 *S3, err error) {
 		return
 	}
 	s3 = &S3{
-		credentials: creds,
-		session:     sess,
-		region:      region,
-		bucket:      bucket,
-		s3:          client.New(sess),
-		retryCnt:    config.RetryCnt,
-		waitSec:     config.WaitSec,
-		uploader:    config.Uploader,
-		downloader:  config.Downloader,
-		headGetter:  config.HeadGetter,
-		hashMaker:   config.HashMaker,
+		credentials:  creds,
+		session:      sess,
+		region:       region,
+		bucket:       bucket,
+		s3:           client.New(sess),
+		retryCnt:     config.RetryCnt,
+		waitDuration: config.WaitDuration,
+		uploader:     config.Uploader,
+		downloader:   config.Downloader,
+		headGetter:   config.HeadGetter,
+		hashMaker:    config.HashMaker,
 	}
 	return
 }
@@ -96,8 +97,8 @@ func (config *Config) setDefault() {
 	if config.RetryCnt <= 0 {
 		config.RetryCnt = 3
 	}
-	if config.WaitSec <= 0 {
-		config.WaitSec = 3
+	if config.WaitDuration <= 0 {
+		config.WaitDuration = 3
 	}
 	if config.Uploader == nil {
 		config.Uploader = &Uploader{}
@@ -130,7 +131,7 @@ func (s3 *S3) Upload(filePath, s3Path string) (err error) {
 			continue
 		}
 
-		if isETag == false {
+		if !isETag {
 			err = errors.New("unmatch etag")
 			s3.wait()
 			continue
@@ -143,7 +144,7 @@ func (s3 *S3) Upload(filePath, s3Path string) (err error) {
 type Uploader struct {
 }
 
-func (_ *Uploader) upload(s3 *S3, filePath, s3Path string) (out *manager.UploadOutput, err error) {
+func (uploader *Uploader) upload(s3 *S3, filePath, s3Path string) (out *manager.UploadOutput, err error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return
@@ -157,8 +158,8 @@ func (_ *Uploader) upload(s3 *S3, filePath, s3Path string) (out *manager.UploadO
 
 	s3PathStr := aws.String(s3Path)
 
-	uploader := manager.NewUploader(s3.session)
-	out, err = uploader.Upload(
+	s3Uploader := manager.NewUploader(s3.session)
+	out, err = s3Uploader.Upload(
 		&manager.UploadInput{
 			Bucket: s3.bucket,
 			Key:    s3PathStr,
@@ -175,7 +176,7 @@ func (_ *Uploader) upload(s3 *S3, filePath, s3Path string) (out *manager.UploadO
 			Key:    s3PathStr,
 		},
 	)
-	return
+	return out, err
 }
 
 func (s3 *S3) Download(filePath, s3Path string) (n int64, err error) {
@@ -195,7 +196,7 @@ func (s3 *S3) Download(filePath, s3Path string) (n int64, err error) {
 			continue
 		}
 
-		if isETag == false {
+		if !isETag {
 			err = errors.New("unmatch etag")
 			s3.wait()
 			continue
@@ -203,13 +204,13 @@ func (s3 *S3) Download(filePath, s3Path string) (n int64, err error) {
 
 		break
 	}
-	return
+	return n, err
 }
 
 type Downloader struct {
 }
 
-func (_ Downloader) download(s3 *S3, filePath, s3Path string) (n int64, err error) {
+func (downloader Downloader) download(s3 *S3, filePath, s3Path string) (n int64, err error) {
 	file, err := os.Create(filePath)
 	if err != nil {
 		return
@@ -224,8 +225,8 @@ func (_ Downloader) download(s3 *S3, filePath, s3Path string) (n int64, err erro
 		}
 	}()
 
-	downloader := manager.NewDownloader(s3.session)
-	n, err = downloader.Download(
+	s3Downloader := manager.NewDownloader(s3.session)
+	n, err = s3Downloader.Download(
 		file,
 		&client.GetObjectInput{
 			Bucket: s3.bucket,
@@ -237,7 +238,7 @@ func (_ Downloader) download(s3 *S3, filePath, s3Path string) (n int64, err erro
 
 type HeadGetter struct{}
 
-func (_ *HeadGetter) get(s3 *S3, s3Path string) (out *client.HeadObjectOutput, err error) {
+func (headGetter *HeadGetter) get(s3 *S3, s3Path string) (out *client.HeadObjectOutput, err error) {
 	return s3.s3.HeadObject(
 		&client.HeadObjectInput{
 			Bucket: s3.bucket,
@@ -260,7 +261,7 @@ func (s3 *S3) IsETag(filePath, s3Path string) (isETag bool, err error) {
 }
 
 func (s3 *S3) wait() {
-	time.Sleep(s3.waitSec * time.Second)
+	time.Sleep(s3.waitDuration * time.Second)
 }
 
 func (s3 *S3) isETag(filePath, eTag string, fileSize int) (isETag bool, err error) {
@@ -284,14 +285,14 @@ func (s3 *S3) isETag(filePath, eTag string, fileSize int) (isETag bool, err erro
 	if err != nil {
 		return
 	}
-	
+
 	isETag = fileHash == hash
 	return
 }
 
 func GetETagHashAndPartCnt(eTag string) (hash string, partCnt int, err error) {
 	splitted := strings.Split(eTag, "-")
-	if len(eTag) <= 0 {
+	if eTag == "" {
 		err = errors.New("empty etag")
 		return
 	}
@@ -316,7 +317,7 @@ func GetMultiPartSize(fileSize, partCnt int) (partSize int, err error) {
 	d := fileSize / mb
 
 	if m > 0 {
-		d += 1
+		d++
 	}
 	partSize = d * megabyte
 	return
@@ -324,7 +325,7 @@ func GetMultiPartSize(fileSize, partCnt int) (partSize int, err error) {
 
 type HashMaker struct{}
 
-func (_ *HashMaker) makeMultiPartFromFile(filePath string, partSize int) (hash string, err error) {
+func (hashMaker *HashMaker) makeMultiPartFromFile(filePath string, partSize int) (hash string, err error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return
@@ -347,15 +348,15 @@ func (_ *HashMaker) makeMultiPartFromFile(filePath string, partSize int) (hash s
 			err = e
 			return
 		}
-		sum := md5.Sum(b[:n])
+		sum := md5.Sum(b[:n]) //nolint:gosec
 		h = append(h, sum[:]...)
 	}
-	sum := md5.Sum(h)
+	sum := md5.Sum(h) //nolint:gosec
 	hash = getMd5FromBytes(sum[:16])
 	return
 }
 
-func (_ *HashMaker) makeSinglePartFromFile(filePath string) (hash string, err error) {
+func (hashMaker *HashMaker) makeSinglePartFromFile(filePath string) (hash string, err error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return
@@ -367,7 +368,7 @@ func (_ *HashMaker) makeSinglePartFromFile(filePath string) (hash string, err er
 		}
 	}()
 
-	h := md5.New()
+	h := md5.New() //nolint:gosec
 	_, err = io.Copy(h, f)
 	if err != nil {
 		return
